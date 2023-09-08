@@ -1,0 +1,62 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+
+#Print out descriptive statistics for a selection of quantitative and categorical variables.
+
+```{r}
+data <- read.csv("/Users/shivagodey/Desktop/ODI Wickets.csv")
+
+summary(data$Country)
+```
+```{r}
+summary(data$Wickets)
+
+```
+#Transform at least one variable. It doesn't matter what the transformation is.
+
+```{r}
+
+data1<-sqrt(data$Average)
+
+```
+
+#Plot at least one quantitative variable, and one scatterplot
+
+```{r}
+barplot(data$Matches)
+```
+
+```{r}
+plot(x = data$Matches,
+	y = data$Average,
+	xlab = "Matches",
+	ylab = "Average",
+	main = "Matches vs Average"
+)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
