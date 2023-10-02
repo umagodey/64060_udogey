@@ -1,0 +1,211 @@
+---
+title: "Assignment_2_UmaMaheswar"
+output: html_document
+date: "2023-09-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+#Loading the libraries
+```{r}
+library(class) 
+library(caret)
+library(e1071)
+```
+
+#Reading the data
+```{r}
+Unibank <- read.csv("/Users/shivagodey/Downloads/UniversalBank.csv") 
+dim(Unibank)
+```
+# The t function creates a transpose of the dataframe
+```{r}
+t(t(names(Unibank)))
+```
+#Drop ID and ZIP
+```{r}
+Unibank <- Unibank[,-c(1,5)]
+```
+
+Split Data into 60% training and 40% validation. There are many ways to do this. We will look at 2 different
+ways. Before we split, let us transform categorical variables into dummy variables
+
+# Only Education needs to be converted to factor
+```{r}
+Unibank$Education <- as.factor(Unibank$Education) 
+```
+# Now, convert Education to Dummy Variables
+```{r}
+groups <- dummyVars(~., data = Unibank)# This creates the dummy groups
+universal_m.df <- as.data.frame(predict(groups,Unibank))
+```
+
+```{r}
+set.seed(1) # Important to ensure that we get the same sample if we rerun the code 
+train.index <- sample(row.names(universal_m.df), 0.6*dim(universal_m.df)[1]) 
+
+valid.index <- setdiff(row.names(universal_m.df), train.index)
+
+train.df <- universal_m.df[train.index,]
+
+valid.df <- universal_m.df[valid.index,]
+
+t(t(names(train.df)))
+```
+#Second approach
+```{r}
+library(caTools)
+set.seed(1)
+split <- sample.split(universal_m.df, SplitRatio = 0.6)
+training_set <- subset(universal_m.df, split == TRUE)
+validation_set <- subset(universal_m.df, split == FALSE)
+```
+# Print the sizes of the training and validation sets
+```{r}
+print(paste("The size of the training set is:", nrow(training_set)))
+```
+```{r}
+print(paste("The size of the validation set is:", nrow(validation_set)))
+```
+Now, let us normalize the data
+
+```{r}
+train.norm.df <- train.df[,-10] # Note that Personal Income is the 10th variable
+valid.norm.df <- valid.df[,-10]
+norm.values <- preProcess(train.df[, -10], method = c("center", "scale"))
+train.norm.df <- predict(norm.values, train.df[, -10])
+valid.norm.df <- predict(norm.values, valid.df[, -10])
+```
+
+Consider the following customer:
+
+1. Age = 40, Experience = 10, Income = 84, Family = 2, CCAvg = 2, Education_1 = 0, Education_2 =1, Education_3 = 0, Mortgage = 0, Securities Account = 0, CD Account = 0, Online = 1, and Credit Card = 1. Perform a k-NN classification with all predictors except ID and ZIP code using k = 1. Remember to transform categorical predictors with more than two categories into dummy variables first. Specify the success class as 1 (loan acceptance), and use the default cutoff value of 0.5. How would this customer be classified?
+
+# We have converted all categorical variables to dummy variables # Let's create a new sample
+```{r}
+new_customer <- data.frame(
+  Age = 40,
+  Experience = 10,
+  Income = 84,
+  Family = 2,
+  CCAvg = 2,
+  Education.1 = 0,
+  Education.2 = 1,
+  Education.3 = 0,
+  Mortgage = 0,
+  Securities.Account = 0,
+  CD.Account = 0,
+  Online = 1,
+  CreditCard = 1
+)
+# Normalize the new customer
+
+new.cust.norm <- new_customer
+new.cust.norm <- predict(norm.values,new.cust.norm)
+
+#Now, let us predict using knn
+
+knn.pred1 <- class::knn(train = train.norm.df, 
+                        test = new.cust.norm,
+cl = train.df$Personal.Loan, k = 1)
+knn.pred1
+```
+2. What is a choice of k that balances between overfitting and ignoring the predictor information?
+
+# Calculate the accuracy for each value of k
+# Set the range of k values to consider
+
+```{r}
+accuracy.df <- data.frame(k = seq(1, 20, 1), overallaccuracy = rep(0, 20))
+for(i in 1:20) {
+  knn.pred <- class::knn(train = train.norm.df,
+                         test = valid.norm.df,
+                         cl = train.df$Personal.Loan, k = i)
+  accuracy.df[i, 2] <- confusionMatrix(knn.pred,
+                                       as.factor(valid.df$Personal.Loan),positive = "1")$overall[1]
+}
+accuracy.df
+```
+
+```{r}
+which(accuracy.df[,2] == max(accuracy.df[,2]))
+```
+```{r}
+plot(accuracy.df$k,accuracy.df$overallaccuracy)
+```
+
+3. Show the confusion matrix for the validation data that results from using the best k.
+
+```{r}
+prediction_knn <- class::knn(train = train.norm.df, test = valid.norm.df,cl = train.df$Personal.Loan,k=3)
+                             confusionMatrix(prediction_knn,as.factor(valid.df$Personal.Loan))
+```
+4. Consider the following customer: Age = 40, Experience = 10, Income = 84, Family = 2, CCAvg = 2, Education_1 = 0, Education_2 = 1, Education_3 = 0, Mortgage = 0, Securities Account = 0, CD Account = 0, Online = 1 and Credit Card = 1. Classify the customer using the best k.
+
+```{r}
+# creating a new sample
+new_customer <- data.frame(
+Age = 40,
+Experience = 10, Income = 84,
+Family = 2,
+CCAvg = 2,
+Education.1 = 0, Education.2 = 1, Education.3 = 0, Mortgage = 0, Securities.Account = 0, CD.Account = 0,
+Online = 1,
+CreditCard = 1
+)
+# Normalize the new customer
+new.cust.norm <- new_customer
+new.cust.norm <- predict(norm.values, new.cust.norm)
+
+knn.pred1 <- class::knn(train = train.norm.df,
+                        test = new.cust.norm,
+                        cl = train.df$Personal.Loan, k = 3)
+knn.pred1
+```
+5.Repartition the data, this time into training, validation, and test sets (50% : 30% : 20%). Apply the k-NN method with the k chosen above. Compare the confusion matrix of the test set with that of the training and validation sets. Comment on the differences and their reason ***
+
+```{r}
+#Repartitioning the training, validation and test sets to 50,30, and 20 percents.
+train_size = 0.5
+rain.index <- sample(rownames(universal_m.df), 0.5*dim(universal_m.df)[1])
+set.seed(1)
+valid.index <- sample(setdiff(rownames(universal_m.df),train.index), 0.3*dim(universal_m.df) [1])
+test.index = setdiff(rownames(universal_m.df), union(train.index, valid.index))
+train.df <- universal_m.df[train.index, ]
+valid.df <- universal_m.df[valid.index, ]
+test.df <- universal_m.df[test.index, ]
+Trainknn = knn(train=train.df[,-10], test = train.df[,-10], cl = train.df[,10], k =3)
+Testknn <- knn(train = train.df[,-10], test = test.df[,-10], cl = train.df[,10], k =3)
+Validationknn <- knn(train = train.df[,-10], test = valid.df[,-10], cl = train.df[,10], k =3)
+confusionMatrix(Trainknn, as.factor(train.df$Personal.Loan))
+```
+
+```{r}
+confusionMatrix(Testknn, as.factor(test.df$Personal.Loan))
+```
+```{r}
+confusionMatrix(Validationknn, as.factor(valid.df$Personal.Loan))
+```
+#compare the confusion matrices of the test set with those of the training and validation sets, we’ll examine the key metrics and statistics provided in each confusion matrix.
+Here are the confusion matrices for the three sets:
+Training Set Confusion Matrix:
+markdown Copy code Reference Prediction 0 1 0 2263 54 1 5 178 Validation Set Confusion Matrix:
+markdown Copy code Reference Prediction 0 1 0 1358 42 1 6 94 Test Set Confusion Matrix: markdown Copy code Reference Prediction 0 1 0 884 35 1 4 77 Now, let’s compare the key metrics and statistics:
+Accuracy:
+Training Set: 0.9764 Validation Set: 0.968 Test Set: 0.961 The accuracy on the training set is slightly higher than on the validation and test sets, but all sets have high accuracy, indicating that the model performs well in terms of overall correctness.
+Sensitivity (True Positive Rate):
+Training Set: 0.9978 Validation Set: 0.9956 Test Set: 0.9955 Sensitivity measures the model’s ability to correctly identify the positive class (in this case, class 1). All sets have very high sensitivity, indicating that the model is excellent at detecting class 1 instances.
+Specificity (True Negative Rate):
+Training Set: 0.7672 Validation Set: 0.6912 Test Set: 0.6875 Specificity measures the model’s ability to correctly identify the negative class (in this case, class 0). The training set has the highest specificity, while the test and validation sets have lower specificity values, suggesting that the model is less accurate at correctly identifying class 0 instances.
+
+Positive Predictive Value (Precision):
+Training Set: 0.9767 Validation Set: 0.9700 Test Set: 0.9619 Precision measures the proportion of true positive predictions among all positive predictions made by the model. The values are similar across all sets, indicating a good balance between precision and recall.
+In summary, while there are slight differences in performance between the training, validation, and test sets, the model generally performs well on all sets. However, there is a noticeable drop in specificity from the training set to the validation and test sets. This suggests that the model might be more prone to false positives (predicting class 1 when it’s actually class 0) on unseen data. Further fine-tuning of the model’s parameters, such as adjusting the threshold for classification or exploring different values of k (if applicable), may help improve specificity on the test set. Additionally, consider evaluating the model’s performance on more diverse or representative data if possible.
+
+
+
+                                       
